@@ -21,6 +21,11 @@ class PlacesViewModel : ViewModel() {
             val swLat: Double = bounds.southwest.latitude
 
             val placesList = repository.getFromViewBounds(neLon, neLat, swLon, swLat)
+            placesList.forEach {
+
+                Log.d("BLOODY", it.icon)
+            }
+
             emit(placesList)
 
         } catch (ex: Exception) {

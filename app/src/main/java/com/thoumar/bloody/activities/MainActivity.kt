@@ -1,14 +1,13 @@
 package com.thoumar.bloody.activities
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.appcompat.app.AppCompatActivity
+import android.content.BroadcastReceiver
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.findNavController
 import androidx.navigation.ui.setupWithNavController
-import com.thoumar.bloody.R
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.thoumar.bloody.R
+
 
 class MainActivity : AppCompatActivity() {
 

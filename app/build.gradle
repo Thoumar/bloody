@@ -97,4 +97,7 @@ dependencies {
 
     // Jsoup
     implementation 'org.jsoup:jsoup:1.10.3'
+
+    // Popin
+    implementation 'com.crowdfire.cfalertdialog:cfalertdialog:1.1.0'
 }

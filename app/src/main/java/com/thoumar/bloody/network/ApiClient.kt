@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 
 class ApiClient {
     companion object {
-        val okHttpClient = OkHttpClient.Builder()
+        private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
             .readTimeout(60, TimeUnit.SECONDS)
             .connectTimeout(60, TimeUnit.SECONDS)
             .build()
@@ -21,4 +21,4 @@ class ApiClient {
 
         var placesService: PlacesService = client.create(PlacesService::class.java)
     }
-}
+} 

@@ -3,12 +3,16 @@ package com.thoumar.bloody.fragments
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
+import android.app.Dialog
 import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
+import android.content.res.Resources
 import android.location.Location
 import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -18,11 +22,15 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.*
+import com.crowdfire.cfalertdialog.CFAlertDialog
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.*
-import com.google.android.gms.maps.model.*
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.android.gms.tasks.Task
 import com.google.maps.android.clustering.ClusterManager
 import com.karumi.dexter.Dexter
@@ -41,11 +49,9 @@ import com.thoumar.bloody.others.SnapOnScrollListener
 import com.thoumar.bloody.viewmodels.PlacesViewModel
 import kotlinx.android.synthetic.main.fragment_map.*
 import kotlinx.android.synthetic.main.fragment_map.view.*
+import java.io.IOException
 import kotlin.math.*
 
-/**
- * A simple [Fragment] subclass.
- */
 class MapFragment : Fragment(), OnMapReadyCallback, PermissionListener {
 
     companion object {
@@ -61,39 +67,60 @@ class MapFragment : Fragment(), OnMapReadyCallback, PermissionListener {
     private var clusterManager: ClusterManager<Place>? = null
     private var lastLocation: Location? = null
     private val initialBounds = LatLngBounds(
-        // SouthWest
-        LatLng(-85.0, -70.0),
-        // North East
-        LatLng(70.0, 85.0)
+        LatLng(-85.0, -70.0), // SouthWest
+        LatLng(70.0, 85.0) // North East
     )
 
     @SuppressLint("RestrictedApi")
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val v = inflater.inflate(R.layout.fragment_map, container, false)
 
+        // Animation
         v.progressBar.visibility = View.VISIBLE
 
         // View Model
         placesViewModel = ViewModelProvider(this).get(PlacesViewModel::class.java)
 
         // Map
-        try { MapsInitializer.initialize(activity?.applicationContext)
-        } catch (e: Exception) { e.printStackTrace() }
+        try {
+            MapsInitializer.initialize(activity?.applicationContext)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         fusedLocationProviderClient = FusedLocationProviderClient(this.requireActivity())
         map = v.findViewById(R.id.map) as MapView
         map.onCreate(savedInstanceState)
         map.onResume()
         map.getMapAsync(this)
+
         return v
+    }
+
+    @Throws(InterruptedException::class, IOException::class)
+    open fun isOnline(): Boolean {
+        val runtime = Runtime.getRuntime()
+        try {
+            val ipProcess = runtime.exec("/system/bin/ping -c 1 8.8.8.8")
+            val exitValue = ipProcess.waitFor()
+            return exitValue == 0
+        } catch (e: IOException) {
+            e.printStackTrace()
+        } catch (e: InterruptedException) {
+            e.printStackTrace()
+        }
+        return false
     }
 
     override fun onMapReady(mMap: GoogleMap) {
 
         // Map initialization
         googleMap = mMap
+
         googleMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(this.activity,
             R.raw.map_style_light
         ))
+
+        googleMap.setPadding(0, 0, 0, (TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 175f, resources.displayMetrics)).toInt())
 
         // ClusterSetup
         clusterManager = ClusterManager<Place>(activity?.applicationContext, googleMap)
@@ -101,28 +128,43 @@ class MapFragment : Fragment(), OnMapReadyCallback, PermissionListener {
         googleMap.setOnMarkerClickListener(clusterManager)
         clusterManager?.setOnClusterItemClickListener { onMapPlaceClicked(it) }
 
-        placesViewModel.getPlacesFromBounds(initialBounds).observe(this, Observer { placesList: List<Place> ->
+        // Is connected
+        if (isOnline()) {
 
-
-            if(lastLocation !== null) {
-                Log.d("[APP]", "Last location is known, adding distance property")
-                placesList.map { place ->
-                    place.range = getDistanceFromLatLonInKm(LatLng(lastLocation!!.latitude, lastLocation!!.longitude), place.position)
+            // Get places
+            placesViewModel.getPlacesFromBounds(initialBounds).observe(this, Observer { placesList: List<Place> ->
+                if(lastLocation !== null) {
+                    Log.d("[APP]", "Last location is known, adding distance property")
+                    placesList.map { place ->
+                        place.range = getDistanceFromLatLonInKm(LatLng(lastLocation!!.latitude, lastLocation!!.longitude), place.position)
+                    }
+                    places = placesList.sortedBy { place ->
+                        place.range
+                    }
+                } else {
+                    Log.d("[APP]", "Last location is unknown, no sorting is made")
+                    places = placesList
                 }
-                places = placesList.sortedBy { place ->
-                    place.range
-                }
-            } else {
-                Log.d("[APP]", "Last location is unknown, no sorting is made")
-                places = placesList
-            }
 
-            placesRcView.layoutManager = LinearLayoutManager(this@MapFragment.context, LinearLayoutManager.HORIZONTAL, false)
-            placesRcView.adapter = PlaceAdapter(places) { place -> onRcPlaceClicked(place) }
-            places.forEach { place -> clusterManager?.addItem(place) }
-            setSnapHelperBehaviorForRecyclerView()
-            progressBar.visibility = View.GONE
-        })
+                placesRcView.layoutManager = LinearLayoutManager(this@MapFragment.context, LinearLayoutManager.HORIZONTAL, false)
+                placesRcView.adapter = PlaceAdapter(places) { place -> onRcPlaceClicked(place) }
+                places.forEach { place -> clusterManager?.addItem(place) }
+                clusterManager?.cluster()
+                setSnapHelperBehaviorForRecyclerView()
+                progressBar.visibility = View.GONE
+            })
+        } else {
+            val builder: CFAlertDialog.Builder = CFAlertDialog.Builder(activity)
+                .setDialogStyle(CFAlertDialog.CFAlertStyle.ALERT)
+                .setIcon(R.drawable.ic_no_internet)
+                .setTitle("Internet indisponible")
+                .setMessage("Vérifiez votre connection à internet et réessayez")
+                .addButton("OK", -1, -1, CFAlertDialog.CFAlertActionStyle.DEFAULT, CFAlertDialog.CFAlertActionAlignment.CENTER) { dialog, _ ->
+                    dialog.dismiss()
+                    activity?.finish()
+                }
+            builder.show()
+        }
 
         clusterManager?.renderer = PlaceClusterRenderer(activity, googleMap, clusterManager)
         checkPermission()

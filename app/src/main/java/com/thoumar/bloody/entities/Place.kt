@@ -1,12 +1,10 @@
 package com.thoumar.bloody.entities
 
-
 import android.content.ContentUris
 import android.content.Intent
 import android.net.Uri
 import android.os.Parcelable
 import android.provider.CalendarContract
-import androidx.core.content.ContextCompat.startActivity
 import com.google.android.gms.maps.model.LatLng
 import com.google.gson.annotations.SerializedName
 import com.google.maps.android.clustering.ClusterItem
@@ -82,7 +80,7 @@ data class Place(
     val icon: String?,
 
     @SerializedName(value = "text")
-    val text: Markup,
+    val text: Markup?,
 
     @SerializedName(value = "ville")
     val cityShort: String?,
@@ -93,12 +91,16 @@ data class Place(
     @SerializedName(value = "type_don_value")
     val givingTypes: List<String>?,
 
-    @SerializedName(value = "marker")
-    val view: String?,
+//
+//    @SerializedName(value = "quand")
+//    val time: String?,
+
+    val marker: String?,
 
     var phoneIntent: Intent?,
     var navigationIntent: Intent?,
     var calendarIntent: Intent?,
+    var shareIntent: Intent?,
     var range: Double?
 
 ): ClusterItem, Parcelable {
@@ -109,15 +111,27 @@ data class Place(
         navigationIntent = Intent(Intent.ACTION_VIEW, navigationUri)
 
         // Phone Intent
-        val phoneUri = Uri.parse("tel:" + this.phoneNumber)
-        phoneIntent = Intent(Intent.ACTION_CALL, phoneUri)
+        if (this.phoneNumber !== null) {
+            val phoneUri = Uri.parse("tel:" + this.phoneNumber)
+            phoneIntent = Intent(Intent.ACTION_CALL, phoneUri)
+        }
 
         // Calendar Intent
         val startMillis = System.currentTimeMillis()
         val builder = CalendarContract.CONTENT_URI.buildUpon()
         builder.appendPath("time")
         ContentUris.appendId(builder, startMillis)
-        calendarIntent = Intent(Intent.ACTION_VIEW).setData(builder.build())
+        calendarIntent = Intent(Intent.ACTION_VIEW)
+            .setData(builder.build())
+            .putExtra(CalendarContract.Events.TITLE, "Don du sang")
+            .putExtra(CalendarContract.Events.DESCRIPTION, this.communication.toString())
+
+        val shareBody = "Hey ! Je donne mon sang à " + this.cityShort + ", rejoins moi !"
+        val intent = Intent(Intent.ACTION_SEND)
+        intent.type = "text/plain"
+        intent.putExtra(Intent.EXTRA_SUBJECT, "Je donne mon sang !")
+        intent.putExtra(Intent.EXTRA_TEXT, shareBody)
+        shareIntent = intent
     }
 
     override fun getSnippet(): String? {
