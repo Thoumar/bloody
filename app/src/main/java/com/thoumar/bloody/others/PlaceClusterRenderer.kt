@@ -19,8 +19,8 @@ import com.thoumar.bloody.entities.Place
 
 class PlaceClusterRenderer(context: Context?, map: GoogleMap?, clusterManager: ClusterManager<Place>?) : DefaultClusterRenderer<Place>(context, map, clusterManager) {
 
-    private val height = 130
-    private val width = 130
+    private val height = 80
+    private val width = 80
 
     private val markerFixIcon: BitmapDescriptor = BitmapDescriptorFactory.fromBitmap(
         Bitmap.createScaledBitmap(
@@ -49,13 +49,12 @@ class PlaceClusterRenderer(context: Context?, map: GoogleMap?, clusterManager: C
     override fun onBeforeClusterItemRendered(place: Place, markerOptions: MarkerOptions) {
         super.onBeforeClusterItemRendered(place, markerOptions)
 
-        var str = place.icon
-        Log.d("BLOODY", str)
+        val str = place.icon
 
         val icon = when(str) {
             "efs" -> markerFixIcon
             "rou" -> markerMobileIcon
-            else -> markerMobileIcon
+            else ->  markerMobileIcon
         }
         markerOptions
             .icon(icon)

@@ -22,7 +22,6 @@ class PlacesViewModel : ViewModel() {
 
             val placesList = repository.getFromViewBounds(neLon, neLat, swLon, swLat)
             placesList.forEach {
-
                 Log.d("BLOODY", it.icon)
             }
 

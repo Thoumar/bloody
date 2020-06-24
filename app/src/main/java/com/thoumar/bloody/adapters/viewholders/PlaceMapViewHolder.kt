@@ -17,7 +17,7 @@ class PlaceMapViewHolder(inflater: LayoutInflater, parent: ViewGroup) :
     RecyclerView.ViewHolder(inflater.inflate(R.layout.place_map_item, parent, false)) {
 
     fun bind(place: Place, click: ((place: Place) -> Unit)) {
-        itemView.placeName.text = place.name
+        itemView.placeName.text = place.name ?: "(Pas de nom)"
         itemView.placeCityLong.text = place.cityLong
         if (place.range !== null) {
             itemView.placeRange.text = place.range.toString() + " km"

@@ -34,7 +34,7 @@ class PlaceActivity : AppCompatActivity() {
         if (place != null) {
 
             // Main informations
-            insertText(placeName, place.name, null)
+            insertText(placeName, (place.name ?: "(Pas de nom)"), null)
             insertText(placeCityLong, place.cityLong, null)
             insertText(placeAddress, place.address, null)
 

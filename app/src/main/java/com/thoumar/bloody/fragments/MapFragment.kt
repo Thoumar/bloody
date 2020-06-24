@@ -3,12 +3,9 @@ package com.thoumar.bloody.fragments
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.app.AlertDialog
-import android.app.Dialog
 import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
-import android.content.res.Resources
 import android.location.Location
 import android.os.Bundle
 import android.util.Log
@@ -60,6 +57,8 @@ class MapFragment : Fragment(), OnMapReadyCallback, PermissionListener {
 
     private lateinit var placesViewModel: PlacesViewModel
 
+    private var isRequestPending: Boolean = false
+
     private lateinit var map: MapView
     private lateinit var googleMap: GoogleMap
     private var places = emptyList<Place>()
@@ -67,8 +66,8 @@ class MapFragment : Fragment(), OnMapReadyCallback, PermissionListener {
     private var clusterManager: ClusterManager<Place>? = null
     private var lastLocation: Location? = null
     private val initialBounds = LatLngBounds(
-        LatLng(-85.0, -70.0), // SouthWest
-        LatLng(70.0, 85.0) // North East
+        LatLng(-85.0, -70.0),
+        LatLng(70.0, 85.0)
     )
 
     @SuppressLint("RestrictedApi")
@@ -115,6 +114,9 @@ class MapFragment : Fragment(), OnMapReadyCallback, PermissionListener {
 
         // Map initialization
         googleMap = mMap
+        googleMap.setMinZoomPreference(6.0f)
+        googleMap.setMaxZoomPreference(14.0f)
+        getPlaces(initialBounds)
 
         googleMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(this.activity,
             R.raw.map_style_light
@@ -123,51 +125,74 @@ class MapFragment : Fragment(), OnMapReadyCallback, PermissionListener {
         googleMap.setPadding(0, 0, 0, (TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 175f, resources.displayMetrics)).toInt())
 
         // ClusterSetup
-        clusterManager = ClusterManager<Place>(activity?.applicationContext, googleMap)
+        clusterManager = ClusterManager(activity?.applicationContext, googleMap)
         googleMap.setOnCameraIdleListener(clusterManager)
         googleMap.setOnMarkerClickListener(clusterManager)
+
+        clusterManager?.onCameraIdle()
         clusterManager?.setOnClusterItemClickListener { onMapPlaceClicked(it) }
 
         // Is connected
         if (isOnline()) {
-
-            // Get places
-            placesViewModel.getPlacesFromBounds(initialBounds).observe(this, Observer { placesList: List<Place> ->
-                if(lastLocation !== null) {
-                    Log.d("[APP]", "Last location is known, adding distance property")
-                    placesList.map { place ->
-                        place.range = getDistanceFromLatLonInKm(LatLng(lastLocation!!.latitude, lastLocation!!.longitude), place.position)
-                    }
-                    places = placesList.sortedBy { place ->
-                        place.range
-                    }
-                } else {
-                    Log.d("[APP]", "Last location is unknown, no sorting is made")
-                    places = placesList
-                }
-
-                placesRcView.layoutManager = LinearLayoutManager(this@MapFragment.context, LinearLayoutManager.HORIZONTAL, false)
-                placesRcView.adapter = PlaceAdapter(places) { place -> onRcPlaceClicked(place) }
-                places.forEach { place -> clusterManager?.addItem(place) }
-                clusterManager?.cluster()
-                setSnapHelperBehaviorForRecyclerView()
-                progressBar.visibility = View.GONE
-            })
-        } else {
-            val builder: CFAlertDialog.Builder = CFAlertDialog.Builder(activity)
-                .setDialogStyle(CFAlertDialog.CFAlertStyle.ALERT)
-                .setIcon(R.drawable.ic_no_internet)
-                .setTitle("Internet indisponible")
-                .setMessage("Vérifiez votre connection à internet et réessayez")
-                .addButton("OK", -1, -1, CFAlertDialog.CFAlertActionStyle.DEFAULT, CFAlertDialog.CFAlertActionAlignment.CENTER) { dialog, _ ->
-                    dialog.dismiss()
-                    activity?.finish()
-                }
-            builder.show()
-        }
+            getPlaces(initialBounds)
+        } else  showDialog()
 
         clusterManager?.renderer = PlaceClusterRenderer(activity, googleMap, clusterManager)
         checkPermission()
+
+    }
+
+    private fun getPlaces(bounds: LatLngBounds) {
+        if(!isRequestPending) {
+            Log.d("isRequestPending", "Request send")
+            isRequestPending = true
+            // Get places
+            placesViewModel.getPlacesFromBounds(bounds).observe(this, Observer { placesList: List<Place> ->
+                sortPlaces(placesList)
+                updateView()
+                updateMapClusters()
+                isRequestPending = false
+            })
+        }
+    }
+    private fun updateMapClusters() {
+        setSnapHelperBehaviorForRecyclerView()
+        places.forEach { place -> clusterManager?.addItem(place) }
+        clusterManager?.cluster()
+    }
+
+    private fun updateView() {
+        placesRcView.layoutManager = LinearLayoutManager(this@MapFragment.context, LinearLayoutManager.HORIZONTAL, false)
+        placesRcView.adapter = PlaceAdapter(places) { place -> onRcPlaceClicked(place) }
+        progressBar.visibility = View.GONE
+    }
+
+
+    private fun sortPlaces(placesList: List<Place>) {
+        if(lastLocation !== null) {
+            placesList.map { place ->
+                place.range = getDistanceFromLatLonInKm(LatLng(lastLocation!!.latitude, lastLocation!!.longitude), place.position)
+            }
+            places = placesList.sortedBy { place ->
+                place.range
+            }
+        } else {
+            Log.d("[APP]", "Last location is unknown, no sorting is made")
+            places = placesList
+        }
+    }
+
+    private fun showDialog() {
+        val builder: CFAlertDialog.Builder = CFAlertDialog.Builder(activity)
+            .setDialogStyle(CFAlertDialog.CFAlertStyle.ALERT)
+            .setIcon(R.drawable.ic_no_internet)
+            .setTitle("Internet indisponible")
+            .setMessage("Vérifiez votre connection à internet et réessayez")
+            .addButton("OK", -1, -1, CFAlertDialog.CFAlertActionStyle.DEFAULT, CFAlertDialog.CFAlertActionAlignment.CENTER) { dialog, _ ->
+                dialog.dismiss()
+                activity?.finish()
+            }
+        builder.show()
     }
 
     private fun getDistanceFromLatLonInKm(latLngOne: LatLng, latLngTwo: LatLng): Double {
@@ -193,8 +218,12 @@ class MapFragment : Fragment(), OnMapReadyCallback, PermissionListener {
         if (indexOfSelectedPlace != -1) {
             placesRcView.smoothSnapToPosition(indexOfSelectedPlace)
         }
+        val cameraPosition = CameraPosition.Builder()
+            .target(LatLng(place.latitude, place.longitude))
+            .zoom(10f)
+            .build()
         try {
-            googleMap.animateCamera(CameraUpdateFactory.newLatLng(LatLng(place.latitude, place.longitude)))
+            googleMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition))
         } catch (e: Exception) {
             e.printStackTrace()
             return false
@@ -228,6 +257,7 @@ class MapFragment : Fragment(), OnMapReadyCallback, PermissionListener {
         }
     }
 
+
     private fun setSnapHelperBehaviorForRecyclerView() {
         val helper: SnapHelper = LinearSnapHelper()
         helper.attachToRecyclerView(placesRcView)
@@ -235,7 +265,11 @@ class MapFragment : Fragment(), OnMapReadyCallback, PermissionListener {
         val onSnapPositionChangeListener = object : OnSnapPositionChangeListener {
             override fun onSnapPositionChange(position: Int) {
                 val place = places[position]
-                googleMap.animateCamera(CameraUpdateFactory.newLatLng(LatLng(place.latitude, place.longitude)))
+                val cameraPosition = CameraPosition.Builder()
+                    .target(LatLng(place.latitude, place.longitude))
+                    .zoom(10f)
+                    .build()
+                googleMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition))
             }
         }
         val snapOnScrollListener = SnapOnScrollListener(helper, behavior, onSnapPositionChangeListener)
@@ -269,8 +303,7 @@ class MapFragment : Fragment(), OnMapReadyCallback, PermissionListener {
                             REQUEST_CHECK_SETTINGS
                         )
                     } catch (e: IntentSender.SendIntentException) {
-                    } catch (e: ClassCastException) {
-                    }
+                    } catch (e: ClassCastException) { }
                     LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE -> { }
                 }
             }

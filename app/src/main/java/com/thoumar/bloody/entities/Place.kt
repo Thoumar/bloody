@@ -15,9 +15,20 @@ import kotlinx.android.parcel.Parcelize
 class Markup(@SerializedName(value = "#markup") val markup: String?): Parcelable {
 
 }
+//
+//@Parcelize
+//class When(val date: String?, val day: String?, val begin: String?, val end: String?): Parcelable {
+//
+//}
 
 @Parcelize
 data class Place(
+
+    @SerializedName(value = "c_id")
+    val campaignId: String?,
+
+    @SerializedName(value = "lp_libconv")
+    val otherInformations: String?,
 
     @SerializedName(value = "lp_ad3")
     val cityLong: String?,
@@ -88,20 +99,37 @@ data class Place(
     @SerializedName(value = "sahre")
     val share: Markup?,
 
+    @SerializedName(value = "route")
+    val route: Markup?,
+//
+//    @SerializedName(value = "quand")
+//    val meeting: When?,
+
     @SerializedName(value = "type_don_value")
     val givingTypes: List<String>?,
 
-//
-//    @SerializedName(value = "quand")
-//    val time: String?,
+    @SerializedName(value = "type_don")
+    val givingType: String?,
+
+    @SerializedName(value = "type_collecte")
+    val collectType: String?,
 
     val marker: String?,
 
+    @SerializedName(value = "marker_liste")
+    val markerList: String?,
+
     var phoneIntent: Intent?,
+
     var navigationIntent: Intent?,
+
     var calendarIntent: Intent?,
+
     var shareIntent: Intent?,
-    var range: Double?
+
+    var range: Double?,
+
+    var view: String?
 
 ): ClusterItem, Parcelable {
     init {
